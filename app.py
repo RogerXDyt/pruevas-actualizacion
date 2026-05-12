@@ -2,17 +2,16 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import requests
 import threading
-import time
 
-VERSION_URL = "https://raw.githubusercontent.com/RogerXDyt/pruevas-actualizacion/main/version.json"
+UPDATE_URL = "https://raw.githubusercontent.com/RogerXDyt/pruevas-actualizacion/main/update.txt"
 
 
 class App:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("Updater TEXT MODE")
-        self.root.geometry("700x450")
+        self.root.title("Updater TEXT")
+        self.root.geometry("800x500")
         self.root.configure(bg="#111")
 
         self.status = tk.StringVar(value="Preparat")
@@ -24,8 +23,8 @@ class App:
 
         title = tk.Label(
             self.root,
-            text="SYSTEM UPDATE (TEXT MODE)",
-            font=("Arial", 18, "bold"),
+            text="SYSTEM UPDATE",
+            font=("Arial", 20, "bold"),
             fg="white",
             bg="#111"
         )
@@ -33,7 +32,7 @@ class App:
 
         self.btn = tk.Button(
             self.root,
-            text="Descarregar actualització",
+            text="Carregar actualització",
             command=self.start,
             bg="#00aa44",
             fg="white",
@@ -65,18 +64,13 @@ class App:
             bg="#111"
         ).pack(pady=5)
 
-        self.log = tk.Text(
+        self.text = tk.Text(
             self.root,
-            height=12,
             bg="black",
-            fg="lime"
+            fg="lime",
+            font=("Consolas", 11)
         )
-        self.log.pack(fill="both", expand=True, padx=10, pady=10)
-
-    def write(self, txt):
-        self.log.insert("end", txt + "\n")
-        self.log.see("end")
-        self.root.update_idletasks()
+        self.text.pack(fill="both", expand=True, padx=10, pady=10)
 
     def set_status(self, t):
         self.status.set(t)
@@ -88,47 +82,30 @@ class App:
         self.root.update_idletasks()
 
     def start(self):
-        threading.Thread(target=self.run, daemon=True).start()
+        threading.Thread(target=self.load_update, daemon=True).start()
 
-    def run(self):
+    def load_update(self):
 
         try:
             self.btn.config(state="disabled")
 
             self.set_status("Connectant a GitHub...")
-            self.write("[INFO] Llegint version.json")
+            self.set_percent(20)
 
-            r = requests.get(VERSION_URL)
-            data = r.json()
+            r = requests.get(UPDATE_URL)
+            r.raise_for_status()
 
-            version = data.get("version", "desconeguda")
+            self.set_percent(60)
 
-            self.write(f"[INFO] Versió detectada: {version}")
+            text = r.text
 
-            self.set_status("Simulant descàrrega...")
+            self.set_status("Mostrant actualització...")
+            self.set_percent(100)
 
-            # SIMULACIÓ "VIDEO"
-            for i in range(101):
-                self.set_percent(i)
+            self.text.delete("1.0", "end")
+            self.text.insert("end", text)
 
-                if i == 10:
-                    self.write("[OK] Inici descàrrega...")
-                if i == 40:
-                    self.write("[OK] Descarregant chunks...")
-                if i == 70:
-                    self.write("[OK] Verificant fitxer...")
-                if i == 90:
-                    self.write("[OK] Finalitzant instal·lació...")
-
-                time.sleep(0.03)
-
-            self.set_status("Actualització completada")
-            self.write("[SUCCESS] Update finalitzat correctament")
-
-            messagebox.showinfo(
-                "OK",
-                f"Actualitzat a versió {version}"
-            )
+            messagebox.showinfo("OK", "Actualització carregada")
 
         except Exception as e:
             messagebox.showerror("Error", str(e))
