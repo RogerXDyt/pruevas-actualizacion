@@ -1,99 +1,174 @@
+import os
+import threading
+from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
+
 import requests
 
-# JSON DE GITHUB
+# JSON de GitHub RAW
 VERSION_URL = "https://raw.githubusercontent.com/RogerXDyt/pruevas-actualizacion/main/version.json"
 
-# NOM DEL VIDEO
-VIDEO_FILE = "update.mp4"
+# Carpeta segura d'escriptura
+DOWNLOADS_DIR = Path.home() / "Downloads"
+if not DOWNLOADS_DIR.exists():
+    DOWNLOADS_DIR = Path.home()
+
+FINAL_VIDEO = DOWNLOADS_DIR / "update.mp4"
+TEMP_VIDEO = DOWNLOADS_DIR / "update.mp4.part"
 
 
-def descarregar_actualizacio():
+def ui_status(text: str) -> None:
+    status_var.set(text)
+    root.update_idletasks()
+
+
+def ui_progress(value: int) -> None:
+    progress["value"] = value
+    percent_var.set(f"{value}%")
+    root.update_idletasks()
+
+
+def baixar_actualitzacio() -> None:
+    boto.config(state="disabled")
+    ui_progress(0)
+    ui_status("Comprovant actualització...")
+
     try:
-        # DESCARREGAR JSON
-        resposta = requests.get(VERSION_URL)
-        resposta.raise_for_status()
+        # Llegir JSON
+        r = requests.get(VERSION_URL, timeout=20)
+        r.raise_for_status()
+        dades = r.json()
 
-        dades = resposta.json()
+        video_url = dades.get("video_url")
+        versio = dades.get("version", "desconeguda")
 
-        video_url = dades["video_url"]
-        versio = dades["version"]
+        if not video_url:
+            raise ValueError("El JSON no conté 'video_url'.")
 
-        # DESCARREGAR VIDEO
-        video = requests.get(video_url, stream=True)
-        video.raise_for_status()
+        ui_status(f"Descarregant versió {versio}...")
 
-        total = int(video.headers.get("content-length", 0))
-        descarregat = 0
+        # Descarregar vídeo
+        with requests.get(video_url, stream=True, timeout=30) as resp:
+            resp.raise_for_status()
 
-        with open(VIDEO_FILE, "wb") as f:
-            for chunk in video.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-                    descarregat += len(chunk)
+            total = int(resp.headers.get("content-length", 0))
+            descarregat = 0
 
-                    if total > 0:
-                        percent = int((descarregat / total) * 100)
-                        barra["value"] = percent
-                        percentatge.config(text=f"{percent}%")
-                        root.update_idletasks()
+            with open(TEMP_VIDEO, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=64 * 1024):
+                    if chunk:
+                        f.write(chunk)
+                        descarregat += len(chunk)
 
+                        if total > 0:
+                            percent = int((descarregat / total) * 100)
+                            ui_progress(percent)
+
+        # Reemplaçar l'antic si existeix
+        if FINAL_VIDEO.exists():
+            try:
+                FINAL_VIDEO.unlink()
+            except PermissionError:
+                raise PermissionError(
+                    f"No puc substituir el fitxer perquè està obert: {FINAL_VIDEO}"
+                )
+
+        os.replace(TEMP_VIDEO, FINAL_VIDEO)
+
+        ui_progress(100)
+        ui_status("Descarrega completada.")
         messagebox.showinfo(
             "Correcte",
-            f"Video descarregat!\nVersio: {versio}"
+            f"Vídeo descarregat correctament.\n\nDesat a:\n{FINAL_VIDEO}"
         )
 
     except Exception as e:
+        # Neteja el temporal si ha fallat
+        try:
+            if TEMP_VIDEO.exists():
+                TEMP_VIDEO.unlink()
+        except Exception:
+            pass
+
+        ui_status("Error en la descàrrega.")
         messagebox.showerror("Error", str(e))
 
+    finally:
+        boto.config(state="normal")
 
-# FINESTRA
+
+def iniciar_descarga() -> None:
+    threading.Thread(target=baixar_actualitzacio, daemon=True).start()
+
+
 root = tk.Tk()
-root.title("Actualizador")
-root.geometry("400x250")
+root.title("Actualitzador de vídeo")
+root.geometry("460x240")
+root.resizable(False, False)
 root.configure(bg="#1e1e1e")
 
-# TITOL
+status_var = tk.StringVar(value="Preparat.")
+percent_var = tk.StringVar(value="0%")
+
 titol = tk.Label(
     root,
-    text="Sistema d'Actualizacions",
+    text="Sistema d'Actualització",
     font=("Arial", 18, "bold"),
     fg="white",
     bg="#1e1e1e"
 )
-titol.pack(pady=20)
+titol.pack(pady=(18, 8))
 
-# BOTO
+subtitol = tk.Label(
+    root,
+    text="Descarrega el vídeo d'actualització des de GitHub",
+    font=("Arial", 10),
+    fg="#b0b0b0",
+    bg="#1e1e1e"
+)
+subtitol.pack(pady=(0, 14))
+
 boto = tk.Button(
     root,
-    text="Descarregar Video",
-    command=descarregar_actualizacio,
+    text="Descarregar actualització",
+    command=iniciar_descarga,
     font=("Arial", 12, "bold"),
     bg="#00aa44",
     fg="white",
-    width=25,
-    height=2
+    activebackground="#008833",
+    activeforeground="white",
+    width=24,
+    height=2,
+    relief="flat"
 )
-boto.pack(pady=10)
+boto.pack(pady=6)
 
-# BARRA
-barra = ttk.Progressbar(
+progress = ttk.Progressbar(
     root,
     orient="horizontal",
-    length=300,
-    mode="determinate"
+    length=340,
+    mode="determinate",
+    maximum=100
 )
-barra.pack(pady=15)
+progress.pack(pady=(14, 6))
 
-# TEXT %
-percentatge = tk.Label(
+percent_label = tk.Label(
     root,
-    text="0%",
-    font=("Arial", 12),
+    textvariable=percent_var,
+    font=("Arial", 11),
     fg="white",
     bg="#1e1e1e"
 )
-percentatge.pack()
+percent_label.pack()
+
+status_label = tk.Label(
+    root,
+    textvariable=status_var,
+    font=("Arial", 10),
+    fg="#d0d0d0",
+    bg="#1e1e1e"
+)
+status_label.pack(pady=(10, 0))
 
 root.mainloop()
