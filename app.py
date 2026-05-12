@@ -15,46 +15,39 @@ class App:
         self.root.geometry("900x600")
         self.root.configure(bg="#0f1115")
 
+        self.request_id = 0
+
         self.status = tk.StringVar(value="Preparat")
         self.percent = tk.StringVar(value="0%")
-
-        self.request_id = 0  # 👈 clau per evitar duplicats
 
         self.build_ui()
 
     def build_ui(self):
-        top = tk.Frame(self.root, bg="#0f1115")
-        top.pack(fill="x", pady=10)
-
-        tk.Label(top, text="SYSTEM UPDATE",
-                 font=("Segoe UI", 20, "bold"),
-                 fg="white", bg="#0f1115").pack()
-
-        buttons = tk.Frame(self.root, bg="#0f1115")
-        buttons.pack(pady=10)
+        tk.Label(
+            self.root,
+            text="SYSTEM UPDATE",
+            font=("Segoe UI", 20, "bold"),
+            fg="white",
+            bg="#0f1115"
+        ).pack(pady=10)
 
         self.btn = tk.Button(
-            buttons,
+            self.root,
             text="Carregar última versió",
             command=self.start,
             bg="#1f8fff",
             fg="white",
             font=("Segoe UI", 11, "bold"),
-            padx=18, pady=10
+            padx=18,
+            pady=10
         )
-        self.btn.grid(row=0, column=0, padx=8)
+        self.btn.pack()
 
-        self.progress = ttk.Progressbar(
-            buttons, length=300, mode="determinate", maximum=100
-        )
-        self.progress.grid(row=0, column=1, padx=8)
+        self.progress = ttk.Progressbar(self.root, length=350, maximum=100)
+        self.progress.pack(pady=10)
 
-        tk.Label(
-            self.root,
-            textvariable=self.status,
-            fg="#c8d0dc",
-            bg="#0f1115"
-        ).pack()
+        tk.Label(self.root, textvariable=self.status,
+                 fg="#c8d0dc", bg="#0f1115").pack()
 
         self.text = ScrolledText(
             self.root,
@@ -65,45 +58,42 @@ class App:
         )
         self.text.pack(fill="both", expand=True, padx=10, pady=10)
 
-    def set_status(self, t):
-        self.status.set(t)
-        self.root.update_idletasks()
-
-    def set_progress(self, v):
-        self.progress["value"] = v
-        self.percent.set(f"{v}%")
-        self.root.update_idletasks()
-
     def start(self):
         self.request_id += 1
-        current_id = self.request_id
+        rid = self.request_id
 
         self.btn.config(state="disabled")
-        self.set_progress(0)
+        self.text.delete("1.0", "end")  # 🔥 importantíssim
 
-        threading.Thread(target=self.load, args=(current_id,), daemon=True).start()
+        threading.Thread(target=self.load, args=(rid,), daemon=True).start()
 
     def load(self, rid):
-
         try:
-            self.root.after(0, lambda: self.set_status("Descarregant..."))
+            self.root.after(0, lambda: self.status.set("Descarregant..."))
 
-            url = UPDATE_URL + f"?t={int(time.time()*1000)}"
+            # 🔥 FORÇA REAL CACHE BUSTING (CLAVE)
+            url = UPDATE_URL + f"?nocache={time.time_ns()}"
 
-            r = requests.get(
-                url,
-                timeout=20,
-                headers={"Cache-Control": "no-cache"}
-            )
+            headers = {
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+                "User-Agent": "Mozilla/5.0"
+            }
+
+            r = requests.get(url, headers=headers, timeout=20)
             r.raise_for_status()
 
-            # 🔥 si ja hi ha un altre clic després, ignora aquesta resposta
+            # si ja hi ha una altra petició nova, ignora aquesta
             if rid != self.request_id:
                 return
 
-            self.root.after(0, lambda: self.set_progress(100))
-            self.root.after(0, lambda: self.render(r.text))
-            self.root.after(0, lambda: self.set_status("Última versió carregada"))
+            text = r.text
+
+            # 🔥 doble assegurança: si arriba buit o igual, igual es reemplaça
+            self.root.after(0, lambda: self.render(text))
+
+            self.root.after(0, lambda: self.status.set("Actualitzat"))
+            self.root.after(0, lambda: self.progress.configure(value=100))
 
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
@@ -112,9 +102,9 @@ class App:
             self.root.after(0, lambda: self.btn.config(state="normal"))
 
     def render(self, text):
-        # 🔥 important: neteja total abans de mostrar
+        # 🔥 neteja absoluta abans de mostrar res
         self.text.delete("1.0", "end")
-        self.text.insert("end", text)
+        self.text.insert("end", text.strip())
 
 
 root = tk.Tk()
