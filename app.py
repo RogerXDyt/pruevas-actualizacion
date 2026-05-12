@@ -3,7 +3,7 @@ from tkinter import messagebox
 import requests
 import os
 
-VERSION_URL = "https://raw.githubusercontent.com/TUUSUARIO/video-updates/main/version.json"
+VERSION_URL = "https://raw.githubusercontent.com/RogerXDyt/pruevas-actualizacion/main/version.json"
 
 def descarregar_video():
     try:
