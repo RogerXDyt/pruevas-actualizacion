@@ -1,8 +1,1 @@
-Versió 1.0
-
-- Millora del sistema d’actualitzacions
-- Correcció d’errors
-- Optimització del rendiment
-
-Notes:
-Aquesta és la nova actualització del sistema.
+oiia
