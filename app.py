@@ -33,7 +33,7 @@ class App:
 
         tk.Label(
             top,
-            text="Carrega el text real des de GitHub",
+            text="Mostra el contingut real de update.txt des de GitHub",
             font=("Segoe UI", 10),
             fg="#aab2c0",
             bg="#0f1115"
@@ -106,9 +106,8 @@ class App:
 
     def render_placeholder(self):
         self.text.delete("1.0", "end")
-        self.text.insert("end", "Aquí es mostrarà l'update.txt real.\n\n", "title")
-        self.text.insert("end", "Prem el botó per descarregar-lo des de GitHub Raw.\n", "normal")
-        self.text.insert("end", "El text pot portar #, ## i llistes amb - per decorar-se automàticament.\n", "muted")
+        self.text.insert("end", "Prem el botó per carregar el fitxer remot.\n", "normal")
+        self.text.insert("end", "El contingut es llegeix directament de GitHub Raw.\n", "muted")
 
     def set_status(self, value):
         self.status.set(value)
