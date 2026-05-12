@@ -1,8 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import requests
-import threading
 from tkinter.scrolledtext import ScrolledText
+import threading
+import requests
 
 UPDATE_URL = "https://raw.githubusercontent.com/RogerXDyt/pruevas-actualizacion/main/update.txt"
 
@@ -23,30 +23,28 @@ class App:
         top = tk.Frame(self.root, bg="#0f1115")
         top.pack(fill="x", pady=(14, 8))
 
-        title = tk.Label(
+        tk.Label(
             top,
             text="SYSTEM UPDATE",
             font=("Segoe UI", 22, "bold"),
             fg="#ffffff",
             bg="#0f1115"
-        )
-        title.pack()
+        ).pack()
 
-        subtitle = tk.Label(
+        tk.Label(
             top,
-            text="Carrega i mostra les notes d'actualització des de GitHub",
+            text="Carrega el text real des de GitHub",
             font=("Segoe UI", 10),
             fg="#aab2c0",
             bg="#0f1115"
-        )
-        subtitle.pack(pady=(2, 0))
+        ).pack(pady=(2, 0))
 
         buttons = tk.Frame(self.root, bg="#0f1115")
         buttons.pack(pady=10)
 
         self.btn = tk.Button(
             buttons,
-            text="Carregar actualització",
+            text="Carregar update.txt",
             command=self.start,
             font=("Segoe UI", 11, "bold"),
             fg="white",
@@ -68,23 +66,21 @@ class App:
         )
         self.progress.grid(row=0, column=1, padx=8)
 
-        self.percent_lbl = tk.Label(
+        tk.Label(
             buttons,
             textvariable=self.percent,
             font=("Segoe UI", 11, "bold"),
             fg="#ffffff",
             bg="#0f1115"
-        )
-        self.percent_lbl.grid(row=0, column=2, padx=8)
+        ).grid(row=0, column=2, padx=8)
 
-        self.status_lbl = tk.Label(
+        tk.Label(
             self.root,
             textvariable=self.status,
             font=("Segoe UI", 10),
             fg="#c8d0dc",
             bg="#0f1115"
-        )
-        self.status_lbl.pack(pady=(0, 10))
+        ).pack(pady=(0, 10))
 
         self.text = ScrolledText(
             self.root,
@@ -110,9 +106,9 @@ class App:
 
     def render_placeholder(self):
         self.text.delete("1.0", "end")
-        self.text.insert("end", "Aquí es mostrarà l'actualització.\n\n", "title")
-        self.text.insert("end", "Prem 'Carregar actualització' per llegir el fitxer de GitHub.\n", "normal")
-        self.text.insert("end", "Pots escriure el text amb títols amb # i seccions amb ##.\n", "muted")
+        self.text.insert("end", "Aquí es mostrarà l'update.txt real.\n\n", "title")
+        self.text.insert("end", "Prem el botó per descarregar-lo des de GitHub Raw.\n", "normal")
+        self.text.insert("end", "El text pot portar #, ## i llistes amb - per decorar-se automàticament.\n", "muted")
 
     def set_status(self, value):
         self.status.set(value)
@@ -129,22 +125,19 @@ class App:
 
     def load_update(self):
         try:
-            self.root.after(0, lambda: self.set_status("Connectant a GitHub..."))
-            self.root.after(0, lambda: self.set_percent(20))
+            self.root.after(0, lambda: self.set_status("Descarregant update.txt..."))
+            self.root.after(0, lambda: self.set_percent(10))
 
             r = requests.get(UPDATE_URL, timeout=20)
             r.raise_for_status()
 
-            self.root.after(0, lambda: self.set_percent(60))
-            text = r.text
-
-            self.root.after(0, lambda: self.render_text(text))
             self.root.after(0, lambda: self.set_percent(100))
-            self.root.after(0, lambda: self.set_status("Actualització carregada"))
+            self.root.after(0, lambda: self.set_status("Text descarregat"))
+            self.root.after(0, lambda: self.render_text(r.text))
 
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
-            self.root.after(0, lambda: self.set_status("Error"))
+            self.root.after(0, lambda: self.set_status("Error en la descàrrega"))
         finally:
             self.root.after(0, lambda: self.btn.config(state="normal"))
 
