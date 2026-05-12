@@ -14,178 +14,109 @@ class App:
         self.root.title("Update Viewer")
         self.root.geometry("900x600")
         self.root.configure(bg="#0f1115")
-        self.root.minsize(800, 500)
 
         self.status = tk.StringVar(value="Preparat")
         self.percent = tk.StringVar(value="0%")
+
+        self.request_id = 0  # 👈 clau per evitar duplicats
 
         self.build_ui()
 
     def build_ui(self):
         top = tk.Frame(self.root, bg="#0f1115")
-        top.pack(fill="x", pady=(14, 8))
+        top.pack(fill="x", pady=10)
 
-        tk.Label(
-            top,
-            text="SYSTEM UPDATE",
-            font=("Segoe UI", 22, "bold"),
-            fg="#ffffff",
-            bg="#0f1115"
-        ).pack()
-
-        tk.Label(
-            top,
-            text="Mostra el contingut real de update.txt des de GitHub Raw",
-            font=("Segoe UI", 10),
-            fg="#aab2c0",
-            bg="#0f1115"
-        ).pack(pady=(2, 0))
+        tk.Label(top, text="SYSTEM UPDATE",
+                 font=("Segoe UI", 20, "bold"),
+                 fg="white", bg="#0f1115").pack()
 
         buttons = tk.Frame(self.root, bg="#0f1115")
         buttons.pack(pady=10)
 
         self.btn = tk.Button(
             buttons,
-            text="Carregar update.txt",
+            text="Carregar última versió",
             command=self.start,
-            font=("Segoe UI", 11, "bold"),
-            fg="white",
             bg="#1f8fff",
-            activebackground="#1673cc",
-            activeforeground="white",
-            relief="flat",
-            padx=18,
-            pady=10
+            fg="white",
+            font=("Segoe UI", 11, "bold"),
+            padx=18, pady=10
         )
         self.btn.grid(row=0, column=0, padx=8)
 
         self.progress = ttk.Progressbar(
-            buttons,
-            orient="horizontal",
-            length=340,
-            mode="determinate",
-            maximum=100
+            buttons, length=300, mode="determinate", maximum=100
         )
         self.progress.grid(row=0, column=1, padx=8)
 
         tk.Label(
-            buttons,
-            textvariable=self.percent,
-            font=("Segoe UI", 11, "bold"),
-            fg="#ffffff",
-            bg="#0f1115"
-        ).grid(row=0, column=2, padx=8)
-
-        tk.Label(
             self.root,
             textvariable=self.status,
-            font=("Segoe UI", 10),
             fg="#c8d0dc",
             bg="#0f1115"
-        ).pack(pady=(0, 10))
+        ).pack()
 
         self.text = ScrolledText(
             self.root,
             bg="#12161d",
-            fg="#e8eef7",
-            insertbackground="white",
+            fg="white",
             font=("Consolas", 11),
-            relief="flat",
-            padx=14,
-            pady=14,
             wrap="word"
         )
-        self.text.pack(fill="both", expand=True, padx=14, pady=(0, 14))
+        self.text.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.text.tag_configure("title", foreground="#7dd3fc", font=("Consolas", 18, "bold"))
-        self.text.tag_configure("section", foreground="#fbbf24", font=("Consolas", 14, "bold"))
-        self.text.tag_configure("bullet", foreground="#86efac", font=("Consolas", 11))
-        self.text.tag_configure("normal", foreground="#e8eef7", font=("Consolas", 11))
-        self.text.tag_configure("muted", foreground="#9aa4b2", font=("Consolas", 10, "italic"))
-        self.text.tag_configure("line", foreground="#334155", font=("Consolas", 11))
-
-        self.render_placeholder()
-
-    def render_placeholder(self):
-        self.text.delete("1.0", "end")
-        self.text.insert("end", "Prem el botó per descarregar el fitxer remot.\n", "normal")
-        self.text.insert("end", "Cada clic força una descàrrega nova des de GitHub.\n", "muted")
-
-    def set_status(self, value):
-        self.status.set(value)
+    def set_status(self, t):
+        self.status.set(t)
         self.root.update_idletasks()
 
-    def set_percent(self, value):
-        self.progress["value"] = value
-        self.percent.set(f"{value}%")
+    def set_progress(self, v):
+        self.progress["value"] = v
+        self.percent.set(f"{v}%")
         self.root.update_idletasks()
 
     def start(self):
+        self.request_id += 1
+        current_id = self.request_id
+
         self.btn.config(state="disabled")
-        threading.Thread(target=self.load_update, daemon=True).start()
+        self.set_progress(0)
 
-    def load_update(self):
+        threading.Thread(target=self.load, args=(current_id,), daemon=True).start()
+
+    def load(self, rid):
+
         try:
-            self.root.after(0, lambda: self.set_status("Descarregant update.txt..."))
-            self.root.after(0, lambda: self.set_percent(10))
+            self.root.after(0, lambda: self.set_status("Descarregant..."))
 
-            # Força una descàrrega nova cada vegada
-            url = f"{UPDATE_URL}?t={int(time.time() * 1000)}"
-            headers = {
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache",
-                "User-Agent": "Mozilla/5.0"
-            }
+            url = UPDATE_URL + f"?t={int(time.time()*1000)}"
 
-            r = requests.get(url, timeout=20, headers=headers)
+            r = requests.get(
+                url,
+                timeout=20,
+                headers={"Cache-Control": "no-cache"}
+            )
             r.raise_for_status()
 
-            self.root.after(0, lambda: self.set_percent(100))
-            self.root.after(0, lambda: self.set_status("Text descarregat"))
-            self.root.after(0, lambda: self.render_text(r.text))
+            # 🔥 si ja hi ha un altre clic després, ignora aquesta resposta
+            if rid != self.request_id:
+                return
+
+            self.root.after(0, lambda: self.set_progress(100))
+            self.root.after(0, lambda: self.render(r.text))
+            self.root.after(0, lambda: self.set_status("Última versió carregada"))
 
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
-            self.root.after(0, lambda: self.set_status("Error en la descàrrega"))
+
         finally:
             self.root.after(0, lambda: self.btn.config(state="normal"))
 
-    def render_text(self, raw_text):
+    def render(self, text):
+        # 🔥 important: neteja total abans de mostrar
         self.text.delete("1.0", "end")
-
-        lines = raw_text.splitlines()
-        first_title_done = False
-
-        for line in lines:
-            stripped = line.strip()
-
-            if not stripped:
-                self.text.insert("end", "\n")
-                continue
-
-            if stripped.startswith("# "):
-                title = stripped[2:].strip()
-                if not first_title_done:
-                    self.text.insert("end", title + "\n", "title")
-                    self.text.insert("end", "=" * max(18, len(title)) + "\n\n", "line")
-                    first_title_done = True
-                else:
-                    self.text.insert("end", title + "\n", "section")
-                    self.text.insert("end", "-" * max(12, len(title)) + "\n", "line")
-
-            elif stripped.startswith("## "):
-                section = stripped[3:].strip()
-                self.text.insert("end", section + "\n", "section")
-                self.text.insert("end", "-" * max(12, len(section)) + "\n", "line")
-
-            elif stripped.startswith("- "):
-                self.text.insert("end", "• " + stripped[2:].strip() + "\n", "bullet")
-
-            else:
-                self.text.insert("end", stripped + "\n", "normal")
+        self.text.insert("end", text)
 
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = App(root)
-    root.mainloop()
+root = tk.Tk()
+App(root)
+root.mainloop()
