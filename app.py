@@ -1,259 +1,301 @@
 import os
-import platform
 import threading
 from pathlib import Path
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk, messagebox
 
 import requests
-import vlc
+import cv2
+from PIL import Image, ImageTk
 
-# JSON de GitHub RAW
+# JSON
 VERSION_URL = "https://raw.githubusercontent.com/RogerXDyt/pruevas-actualizacion/main/version.json"
 
 # Carpeta segura
-DOWNLOADS_DIR = Path.home() / "Downloads"
-if not DOWNLOADS_DIR.exists():
-    DOWNLOADS_DIR = Path.home()
+DOWNLOADS = Path.home() / "Downloads"
 
-FINAL_VIDEO = DOWNLOADS_DIR / "update.mp4"
-TEMP_VIDEO = DOWNLOADS_DIR / "update.mp4.part"
+VIDEO_PATH = DOWNLOADS / "update.mp4"
+TEMP_PATH = DOWNLOADS / "update.mp4.part"
 
 
-class VideoApp:
+class App:
+
     def __init__(self, root):
         self.root = root
-        self.root.title("Actualitzador de vídeo")
-        self.root.geometry("900x600")
-        self.root.configure(bg="#1e1e1e")
+        self.root.title("Video Updater")
+        self.root.geometry("1000x700")
+        self.root.configure(bg="#111111")
 
-        self.instance = vlc.Instance()
-        self.player = self.instance.media_player_new()
+        self.cap = None
+        self.playing = False
 
-        self.status_var = tk.StringVar(value="Preparat.")
-        self.percent_var = tk.StringVar(value="0%")
-        self.is_playing = False
+        self.status = tk.StringVar(value="Preparat")
+        self.percent = tk.StringVar(value="0%")
 
-        self._build_ui()
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.crear_ui()
 
-    def _build_ui(self):
+    def crear_ui(self):
+
         title = tk.Label(
             self.root,
-            text="Sistema d'Actualització",
-            font=("Arial", 20, "bold"),
+            text="Sistema d'Actualitzacio",
+            font=("Arial", 24, "bold"),
             fg="white",
-            bg="#1e1e1e"
+            bg="#111111"
         )
-        title.pack(pady=(14, 6))
+        title.pack(pady=10)
 
-        subtitle = tk.Label(
-            self.root,
-            text="Descarrega el vídeo des de GitHub i reprodueix-lo dins l'app",
-            font=("Arial", 10),
-            fg="#b0b0b0",
-            bg="#1e1e1e"
-        )
-        subtitle.pack(pady=(0, 10))
-
-        controls = tk.Frame(self.root, bg="#1e1e1e")
-        controls.pack(pady=6)
+        controls = tk.Frame(self.root, bg="#111111")
+        controls.pack()
 
         self.download_btn = tk.Button(
             controls,
-            text="Descarregar i reproduir",
+            text="Descarregar Video",
             command=self.start_download,
             font=("Arial", 12, "bold"),
             bg="#00aa44",
             fg="white",
-            activebackground="#008833",
-            activeforeground="white",
-            width=24,
-            height=2,
-            relief="flat"
+            width=22,
+            height=2
         )
         self.download_btn.grid(row=0, column=0, padx=8)
 
         self.play_btn = tk.Button(
             controls,
-            text="Reproduir vídeo",
+            text="Reproduir",
             command=self.play_video,
             font=("Arial", 12, "bold"),
-            bg="#2d6cdf",
+            bg="#2266dd",
             fg="white",
-            activebackground="#1e54b8",
-            activeforeground="white",
-            width=18,
-            height=2,
-            relief="flat"
+            width=15,
+            height=2
         )
         self.play_btn.grid(row=0, column=1, padx=8)
 
         self.stop_btn = tk.Button(
             controls,
-            text="Aturar",
+            text="Stop",
             command=self.stop_video,
             font=("Arial", 12, "bold"),
             bg="#cc3333",
             fg="white",
-            activebackground="#a82828",
-            activeforeground="white",
             width=12,
-            height=2,
-            relief="flat"
+            height=2
         )
         self.stop_btn.grid(row=0, column=2, padx=8)
 
         self.progress = ttk.Progressbar(
             self.root,
             orient="horizontal",
-            length=520,
+            length=500,
             mode="determinate",
             maximum=100
         )
-        self.progress.pack(pady=(12, 4))
+        self.progress.pack(pady=15)
 
         percent_label = tk.Label(
             self.root,
-            textvariable=self.percent_var,
+            textvariable=self.percent,
             font=("Arial", 11),
             fg="white",
-            bg="#1e1e1e"
+            bg="#111111"
         )
         percent_label.pack()
 
         status_label = tk.Label(
             self.root,
-            textvariable=self.status_var,
-            font=("Arial", 10),
-            fg="#d0d0d0",
-            bg="#1e1e1e"
+            textvariable=self.status,
+            font=("Arial", 11),
+            fg="#cccccc",
+            bg="#111111"
         )
-        status_label.pack(pady=(6, 10))
+        status_label.pack(pady=5)
 
-        # Marc del vídeo
-        video_container = tk.Frame(self.root, bg="black", width=860, height=420)
-        video_container.pack(pady=8)
-        video_container.pack_propagate(False)
-
-        self.video_panel = tk.Frame(video_container, bg="black", width=860, height=420)
-        self.video_panel.pack(fill="both", expand=True)
-
-        self.root.update_idletasks()
-        self._set_player_handle()
-
-    def _set_player_handle(self):
-        handle = self.video_panel.winfo_id()
-        system = platform.system()
-
-        if system == "Windows":
-            self.player.set_hwnd(handle)
-        elif system == "Linux":
-            self.player.set_xwindow(handle)
-        elif system == "Darwin":
-            self.player.set_nsobject(handle)
+        # VIDEO PANEL
+        self.video_label = tk.Label(
+            self.root,
+            bg="black"
+        )
+        self.video_label.pack(
+            pady=20,
+            fill="both",
+            expand=True
+        )
 
     def set_status(self, text):
-        self.status_var.set(text)
+        self.status.set(text)
         self.root.update_idletasks()
 
     def set_progress(self, value):
         self.progress["value"] = value
-        self.percent_var.set(f"{value}%")
+        self.percent.set(f"{value}%")
         self.root.update_idletasks()
 
     def start_download(self):
-        self.download_btn.config(state="disabled")
-        self.set_progress(0)
-        self.set_status("Comprovant actualització...")
-        threading.Thread(target=self.download_update, daemon=True).start()
+        threading.Thread(
+            target=self.download_video,
+            daemon=True
+        ).start()
 
-    def download_update(self):
+    def download_video(self):
+
         try:
-            r = requests.get(VERSION_URL, timeout=20)
-            r.raise_for_status()
+
+            self.set_status("Llegint JSON...")
+
+            r = requests.get(VERSION_URL)
             data = r.json()
 
-            video_url = data.get("video_url")
-            version = data.get("version", "desconeguda")
+            video_url = data["video_url"]
 
-            if not video_url:
-                raise ValueError("El JSON no conté 'video_url'.")
+            self.set_status("Descarregant video...")
 
-            self.root.after(0, lambda: self.set_status(f"Descarregant versió {version}..."))
+            response = requests.get(
+                video_url,
+                stream=True
+            )
 
-            with requests.get(video_url, stream=True, timeout=30) as resp:
-                resp.raise_for_status()
+            total = int(
+                response.headers.get(
+                    "content-length",
+                    0
+                )
+            )
 
-                total = int(resp.headers.get("content-length", 0))
-                downloaded = 0
+            downloaded = 0
 
-                with open(TEMP_VIDEO, "wb") as f:
-                    for chunk in resp.iter_content(chunk_size=64 * 1024):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
+            with open(TEMP_PATH, "wb") as f:
 
-                            if total > 0:
-                                percent = int((downloaded / total) * 100)
-                                self.root.after(0, lambda p=percent: self.set_progress(p))
+                for chunk in response.iter_content(65536):
 
-            if FINAL_VIDEO.exists():
+                    if chunk:
+
+                        f.write(chunk)
+
+                        downloaded += len(chunk)
+
+                        if total > 0:
+
+                            percent = int(
+                                downloaded / total * 100
+                            )
+
+                            self.set_progress(percent)
+
+            if VIDEO_PATH.exists():
                 try:
-                    FINAL_VIDEO.unlink()
-                except PermissionError:
-                    raise PermissionError(f"No puc substituir el fitxer perquè està obert: {FINAL_VIDEO}")
+                    VIDEO_PATH.unlink()
+                except:
+                    pass
 
-            os.replace(TEMP_VIDEO, FINAL_VIDEO)
+            os.replace(TEMP_PATH, VIDEO_PATH)
 
-            self.root.after(0, lambda: self.set_status("Descàrrega completada. Reproduint..."))
-            self.root.after(0, self.play_video)
-            self.root.after(0, lambda: self.set_progress(100))
+            self.set_status("Video descarregat!")
+
+            self.play_video()
 
         except Exception as e:
-            try:
-                if TEMP_VIDEO.exists():
-                    TEMP_VIDEO.unlink()
-            except Exception:
-                pass
 
-            self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
-            self.root.after(0, lambda: self.set_status("Error en la descàrrega."))
-
-        finally:
-            self.root.after(0, lambda: self.download_btn.config(state="normal"))
+            messagebox.showerror(
+                "Error",
+                str(e)
+            )
 
     def play_video(self):
-        if not FINAL_VIDEO.exists():
-            messagebox.showwarning("Atenció", "Encara no hi ha cap vídeo descarregat.")
+
+        if not VIDEO_PATH.exists():
+
+            messagebox.showwarning(
+                "Error",
+                "No existeix el video"
+            )
+
             return
 
-        try:
-            self.stop_video()
+        self.stop_video()
 
-            self._set_player_handle()
-            media = self.instance.media_new(str(FINAL_VIDEO))
-            self.player.set_media(media)
-            self.player.play()
-            self.is_playing = True
-            self.set_status("Reproduint vídeo dins la finestra...")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+        self.cap = cv2.VideoCapture(
+            str(VIDEO_PATH)
+        )
+
+        self.playing = True
+
+        self.update_frame()
 
     def stop_video(self):
-        try:
-            if self.player:
-                self.player.stop()
-            self.is_playing = False
-        except Exception:
-            pass
 
-    def on_close(self):
-        self.stop_video()
-        self.root.destroy()
+        self.playing = False
+
+        if self.cap:
+            self.cap.release()
+            self.cap = None
+
+    def update_frame(self):
+
+        if not self.playing:
+            return
+
+        ret, frame = self.cap.read()
+
+        if ret:
+
+            frame = cv2.cvtColor(
+                frame,
+                cv2.COLOR_BGR2RGB
+            )
+
+            # REDIMENSIONAR
+            h, w, _ = frame.shape
+
+            max_w = 900
+            max_h = 500
+
+            scale = min(
+                max_w / w,
+                max_h / h
+            )
+
+            nw = int(w * scale)
+            nh = int(h * scale)
+
+            frame = cv2.resize(
+                frame,
+                (nw, nh)
+            )
+
+            img = Image.fromarray(frame)
+
+            imgtk = ImageTk.PhotoImage(
+                image=img
+            )
+
+            self.video_label.imgtk = imgtk
+
+            self.video_label.configure(
+                image=imgtk
+            )
+
+            self.root.after(
+                15,
+                self.update_frame
+            )
+
+        else:
+
+            # LOOP
+            self.cap.set(
+                cv2.CAP_PROP_POS_FRAMES,
+                0
+            )
+
+            self.root.after(
+                15,
+                self.update_frame
+            )
 
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = VideoApp(root)
-    root.mainloop()
+root = tk.Tk()
+
+app = App(root)
+
+root.mainloop()
