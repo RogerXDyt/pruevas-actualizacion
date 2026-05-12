@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.scrolledtext import ScrolledText
 import threading
+import time
 import requests
 
 UPDATE_URL = "https://raw.githubusercontent.com/RogerXDyt/pruevas-actualizacion/main/update.txt"
@@ -11,8 +12,9 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("Update Viewer")
-        self.root.geometry("860x560")
+        self.root.geometry("900x600")
         self.root.configure(bg="#0f1115")
+        self.root.minsize(800, 500)
 
         self.status = tk.StringVar(value="Preparat")
         self.percent = tk.StringVar(value="0%")
@@ -33,7 +35,7 @@ class App:
 
         tk.Label(
             top,
-            text="Mostra el contingut real de update.txt des de GitHub",
+            text="Mostra el contingut real de update.txt des de GitHub Raw",
             font=("Segoe UI", 10),
             fg="#aab2c0",
             bg="#0f1115"
@@ -60,7 +62,7 @@ class App:
         self.progress = ttk.Progressbar(
             buttons,
             orient="horizontal",
-            length=320,
+            length=340,
             mode="determinate",
             maximum=100
         )
@@ -106,8 +108,8 @@ class App:
 
     def render_placeholder(self):
         self.text.delete("1.0", "end")
-        self.text.insert("end", "Prem el botó per carregar el fitxer remot.\n", "normal")
-        self.text.insert("end", "El contingut es llegeix directament de GitHub Raw.\n", "muted")
+        self.text.insert("end", "Prem el botó per descarregar el fitxer remot.\n", "normal")
+        self.text.insert("end", "Cada clic força una descàrrega nova des de GitHub.\n", "muted")
 
     def set_status(self, value):
         self.status.set(value)
@@ -127,7 +129,15 @@ class App:
             self.root.after(0, lambda: self.set_status("Descarregant update.txt..."))
             self.root.after(0, lambda: self.set_percent(10))
 
-            r = requests.get(UPDATE_URL, timeout=20)
+            # Força una descàrrega nova cada vegada
+            url = f"{UPDATE_URL}?t={int(time.time() * 1000)}"
+            headers = {
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+                "User-Agent": "Mozilla/5.0"
+            }
+
+            r = requests.get(url, timeout=20, headers=headers)
             r.raise_for_status()
 
             self.root.after(0, lambda: self.set_percent(100))
@@ -175,6 +185,7 @@ class App:
                 self.text.insert("end", stripped + "\n", "normal")
 
 
-root = tk.Tk()
-app = App(root)
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = App(root)
+    root.mainloop()
